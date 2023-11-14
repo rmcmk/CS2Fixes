@@ -109,11 +109,6 @@ SH_DECL_HOOK3_void(ICvar, DispatchConCommand, SH_NOATTRIB, 0, ConCommandHandle, 
 
 CS2Fixes g_CS2Fixes;
 
-CON_COMMAND_F(toggle_logs, "Toggle printing most logs and warnings", FCVAR_SPONLY | FCVAR_LINKED_CONCOMMAND)
-{
-	ToggleLogs();
-}
-
 IGameEventSystem *g_gameEventSystem = nullptr;
 IGameEventManager2 *g_gameEventManager = nullptr;
 INetworkGameServer *g_pNetworkGameServer = nullptr;
@@ -203,7 +198,10 @@ bool CS2Fixes::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen, bool
 	}
 
 	if (!bRequiredInitLoaded)
+	{
+		snprintf(error, maxlen, "One or more address lookups, patches or detours failed, please refer to startup logs for more information");
 		return false;
+	}
 
 	Message( "All hooks started!\n" );
 
@@ -243,6 +241,9 @@ bool CS2Fixes::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen, bool
 		g_playerManager->CheckInfractions();
 		return 30.0f;
 	});
+
+	// run our cfg
+	g_pEngineServer2->ServerCommand("exec cs2fixes/cs2fixes");
 
 	srand(time(0));
 
@@ -369,12 +370,7 @@ void CS2Fixes::Hook_StartupServer(const GameSessionConfiguration_t& config, ISou
 	g_pEntitySystem = interfaces::pGameResourceServiceServer->GetGameEntitySystem();
 	gpGlobals = g_pNetworkGameServer->GetGlobals();
 
-	// exec a map cfg
-	Message("Hook_StartupServer: Running map config for %s\n", gpGlobals->mapname);
-
-	char cmd[MAX_PATH];
-	V_snprintf(cmd, sizeof(cmd), "exec maps/%s", gpGlobals->mapname);
-	g_pEngineServer2->ServerCommand(cmd);
+	Message("Hook_StartupServer: %s\n", gpGlobals->mapname);
 
 	if(g_bHasTicked)
 		RemoveMapTimers();
@@ -399,7 +395,7 @@ void CS2Fixes::Hook_StartupServer(const GameSessionConfiguration_t& config, ISou
 	});
 
 	// Set amount of Extends left
-	g_ExtendsLeft = 1;
+	g_iExtendsLeft = 1;
 }
 
 void CS2Fixes::Hook_GameServerSteamAPIActivated()
@@ -427,7 +423,7 @@ void CS2Fixes::Hook_PostEvent(CSplitScreenSlot nSlot, bool bLocalOnly, int nClie
 
 	NetMessageInfo_t *info = pEvent->GetNetMessageInfo();
 
-	if (info->m_MessageId == GE_FireBulletsId)
+	if (g_bEnableStopSound && info->m_MessageId == GE_FireBulletsId)
 	{
 		if (g_playerManager->GetSilenceSoundMask())
 		{
@@ -576,7 +572,7 @@ void CS2Fixes::Hook_GameFrame( bool simulating, bool bFirstTick, bool bLastTick 
 void CS2Fixes::Hook_CheckTransmit(CCheckTransmitInfo **ppInfoList, int infoCount, CBitVec<16384> &unionTransmitEdicts,
 								const Entity2Networkable_t **pNetworkables, const uint16 *pEntityIndicies, int nEntities)
 {
-	if (!g_pEntitySystem)
+	if (!g_bEnableHide || !g_pEntitySystem)
 		return;
 
 	VPROF_ENTER_SCOPE(__FUNCTION__);
