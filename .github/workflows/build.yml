@@ -1,22 +1,8 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-    - LICENSE
-    - README.md
-    - 'configs**'
-    - '**.sln'
-    - '**.vcxproj**'
-  pull_request:
-    paths-ignore:
-    - LICENSE
-    - README.md
-    - 'configs**'
-    - '**.sln'
-    - '**.vcxproj**'
+  release:
+    types: [created]
 
 jobs:
   build:
@@ -74,7 +60,7 @@ jobs:
 
   release:
     name: Release
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'release' && github.event.action == 'created'
     needs: build
     runs-on: ubuntu-latest
 
